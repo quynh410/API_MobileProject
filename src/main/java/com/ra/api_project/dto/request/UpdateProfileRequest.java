@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.web.multipart.MultipartFile;
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -44,7 +45,11 @@ public class UpdateProfileRequest {
     @Size(max = 500, message = "Địa chỉ không được vượt quá 500 ký tự")
     private String address;
 
-    @Schema(description = "Avatar URL", example = "https://example.com/new-avatar.jpg")
+    @Schema(description = "Avatar URL (nếu không upload file)", example = "https://example.com/new-avatar.jpg")
     @Size(max = 255, message = "Avatar URL không được vượt quá 255 ký tự")
     private String avatarUrl;
+
+    // ✅ QUAN TRỌNG: Field này để nhận file upload từ form-data
+    @Schema(description = "File avatar để upload lên Cloudinary", type = "string", format = "binary")
+    private MultipartFile avatar;
 }

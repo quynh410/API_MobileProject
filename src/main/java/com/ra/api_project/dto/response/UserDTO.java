@@ -35,6 +35,9 @@ public class UserDTO {
     @Schema(description = "Avatar URL")
     private String avatarUrl;
 
+    @Schema(description = "Địa chỉ", example = "HCM, Lệ Trọng Thắng")
+    private String address;
+
     // Method chuyển từ User Entity sang UserDTO
     public static UserDTO fromUser(User user) {
         if (user == null) return null;

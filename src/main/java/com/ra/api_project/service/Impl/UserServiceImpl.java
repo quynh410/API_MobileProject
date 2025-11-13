@@ -1,5 +1,7 @@
 package com.ra.api_project.service.Impl;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import com.ra.api_project.config.JwtUtil;
 import com.ra.api_project.dto.request.LoginRequest;
 import com.ra.api_project.dto.request.RegisterRequest;
@@ -8,6 +10,7 @@ import com.ra.api_project.entity.User;
 import com.ra.api_project.repository.UserRepository;
 import com.ra.api_project.service.UserService;
 import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -15,6 +18,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.util.Map;
 
 @Service
 @Transactional
@@ -24,6 +31,9 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
+
+    @Autowired
+    private Cloudinary cloudinary;
 
     public UserServiceImpl(UserRepository userRepository,
                            PasswordEncoder passwordEncoder,
@@ -127,10 +137,53 @@ public class UserServiceImpl implements UserService {
             user.setAddress(req.getAddress());
         }
 
-        if (req.getAvatarUrl() != null && !req.getAvatarUrl().isBlank()) {
-            user.setAvatarUrl(req.getAvatarUrl());
+        //  SỬA: Upload avatar mới lên Cloudinary nếu có
+        String avatarUrl = user.getAvatarUrl();
+        MultipartFile avatar = req.getAvatar();
+        if (avatar != null && !avatar.isEmpty()) {
+            try {
+                if (user.getAvatarUrl() != null && !user.getAvatarUrl().isEmpty()) {
+                    String publicId = extractPublicIdFromUrl(user.getAvatarUrl());
+                    if (publicId != null) {
+                        cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
+                    }
+                }
+
+                Map uploadResult = cloudinary.uploader().upload(avatar.getBytes(),
+                        ObjectUtils.asMap(
+                                "folder", "user_avatars",
+                                "resource_type", "auto"
+                        ));
+                avatarUrl = uploadResult.get("secure_url").toString();
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new RuntimeException("Failed to upload avatar: " + e.getMessage());
+            }
         }
 
+        user.setAvatarUrl(avatarUrl);
+
         return userRepository.save(user);
+    }
+
+    private String extractPublicIdFromUrl(String imageUrl) {
+        try {
+            String[] parts = imageUrl.split("/upload/");
+            if (parts.length > 1) {
+                String pathAfterUpload = parts[1];
+                String[] pathParts = pathAfterUpload.split("/", 2);
+                if (pathParts.length > 1) {
+                    String publicIdWithExtension = pathParts[1];
+                    int lastDotIndex = publicIdWithExtension.lastIndexOf('.');
+                    if (lastDotIndex > 0) {
+                        return publicIdWithExtension.substring(0, lastDotIndex);
+                    }
+                    return publicIdWithExtension;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to extract public_id from URL: " + e.getMessage());
+        }
+        return null;
     }
 }
